@@ -14,7 +14,7 @@
 namespace fs = std::filesystem; 
 
 fs::path getPath();
-std::vector<std::wstring> getAllFilesAndDirectories(const fs::path& folderPath);
+std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath);
 std::string wstringToUtf8(const std::wstring& wstr);
 
 
@@ -36,7 +36,7 @@ int main()
 		break;
 	}
 
-    std::vector<std::wstring> foundPaths = getAllFilesAndDirectories(folderPath);
+    std::vector<fs::path> foundPaths = getAllFilesAndDirectories(folderPath);
 
     std::wcout << L"\nScan completed. Found " << foundPaths.size() << L" files and directories in: " << folderPath.wstring() << std::endl;
 	std::wcout << L"Here are the results:\n" << std::endl;
@@ -51,8 +51,17 @@ int main()
 
     for (const auto& path : foundPaths)
     {
-		std::wcout << path << std::endl;
-        log << wstringToUtf8(path) << std::endl;
+        fs::path relativePath = fs::relative(path, folderPath);
+        auto depth = std::distance(relativePath.begin(), relativePath.end());
+
+		// Create an indent based on the depth of the path
+		// Using a wide string for the indent, then converting it to UTF-8 for the log
+
+        std::wstring wIndent = (depth > 1) ? std::wstring((depth - 1) * 2, L' ') : L"";
+        std::string indent = wstringToUtf8(wIndent);
+
+        std::wcout << wIndent << path.filename() << std::endl;
+        log << std::string(indent.begin(), indent.end()) << wstringToUtf8(path.filename().wstring()) << std::endl;
     }
 	
 	std::wcout << L"You can read the results in the log!" << std::endl;
@@ -102,9 +111,9 @@ fs::path getPath()
     }
 }
 
-std::vector<std::wstring> getAllFilesAndDirectories(const fs::path& folderPath)
+std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath)
 {
-    std::vector<std::wstring> results;
+    std::vector<fs::path> results;
 
     try {
         for (auto it = fs::recursive_directory_iterator(folderPath, fs::directory_options::skip_permission_denied); it != fs::recursive_directory_iterator(); ++it)
@@ -120,7 +129,7 @@ std::vector<std::wstring> getAllFilesAndDirectories(const fs::path& folderPath)
 					continue;
                 }
 
-                results.push_back(it->path().wstring());
+                results.push_back(it->path());
             }
             catch (const std::system_error& ex) {
                 std::wcerr << L"Failed to process: " << it->path().wstring() << std::endl;
@@ -139,14 +148,15 @@ std::string wstringToUtf8(const std::wstring& wstr)
 {
     if (wstr.empty()) return std::string();
 
+	// Just calculating the size needed for the UTF-8 string, conversion will be done in the next step
     int size_needed = WideCharToMultiByte(
-        CP_UTF8,            // Convert to UTF-8
-        0,                  // Flags
-        wstr.data(),        // Source wide string
-        (int)wstr.size(),   // Length of wide string
-        nullptr,            // No output buffer yet
-        0,                  // Request size only
-        nullptr, nullptr    // Default character and flag
+        CP_UTF8,            
+        0,                  
+        wstr.data(),        
+        (int)wstr.size(),   
+        nullptr,            
+        0,                  
+        nullptr, nullptr    
     );
 
     if (size_needed <= 0)
@@ -154,7 +164,7 @@ std::string wstringToUtf8(const std::wstring& wstr)
 
     std::string utf8str(size_needed, 0);
 
-    // Perform the conversion
+    // Make the conversion
     int converted_chars = WideCharToMultiByte(
         CP_UTF8,
         0,
