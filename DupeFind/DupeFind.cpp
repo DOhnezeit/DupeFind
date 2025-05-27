@@ -5,10 +5,11 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <sstream>
 #include <algorithm>
-#include <locale>
-#include <cwctype>
 #include <Windows.h>
+#include <wincrypt.h>
+#include <map>
 
 
 namespace fs = std::filesystem; 
@@ -16,6 +17,10 @@ namespace fs = std::filesystem;
 fs::path getPath();
 std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath);
 std::string wstringToUtf8(const std::wstring& wstr);
+std::string calculateSHA256(const fs::path& filePath);
+std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<fs::path>& files);
+void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups);
+
 
 
 int main()
@@ -63,8 +68,22 @@ int main()
         std::wcout << wIndent << path.filename() << std::endl;
         log << std::string(indent.begin(), indent.end()) << wstringToUtf8(path.filename().wstring()) << std::endl;
     }
-	
-	std::wcout << L"You can read the results in the log!" << std::endl;
+    log.close();
+	std::wcout << L"You can read about the found files in the log!" << std::endl;
+
+	// Calculate SHA-256 for the first file found in the directory (testing purposes)
+    for (const auto& entry : fs::recursive_directory_iterator(folderPath))
+    {
+        if (fs::is_regular_file(entry.path()))
+        {
+            std::string hexHash = calculateSHA256(entry.path());
+            std::wcout << L"First file: " << entry.path().wstring() << std::endl;
+            std::wcout << L"SHA-256: " << std::wstring(hexHash.begin(), hexHash.end()) << std::endl;
+            break;
+        }
+    }
+
+	// TODO: Continue here with the MD5 calculation and duplicate detection
 
     return 0;
 }
@@ -81,6 +100,7 @@ fs::path getPath()
 
     try
     {
+		// Convert the input string to a filesystem path object
         fs::path pathObj(std::move(folderPath));
 
         if (!fs::exists(pathObj))
@@ -94,6 +114,7 @@ fs::path getPath()
             return {};
         }
 
+		// Normalize the path to its canonical form (resolving any symbolic links, relative paths, etc.)
         return fs::canonical(pathObj);
     }
 
@@ -164,7 +185,7 @@ std::string wstringToUtf8(const std::wstring& wstr)
 
     std::string utf8str(size_needed, 0);
 
-    // Make the conversion
+	// Actually converting the wide string to UTF-8
     int converted_chars = WideCharToMultiByte(
         CP_UTF8,
         0,
@@ -180,4 +201,87 @@ std::string wstringToUtf8(const std::wstring& wstr)
         return std::string();
 
     return utf8str;
+}
+
+std::string calculateSHA256(const fs::path& filePath)
+{
+	std::ifstream file(filePath, std::ios::binary);
+    if (!file.is_open())
+    {
+        std::wcerr << L"Error: Could not open file " << filePath.wstring() << std::endl;
+		return {};
+    }
+
+	HCRYPTPROV hProv = NULL; // Cryptographic provider handle
+	HCRYPTHASH hHash = NULL; // Hash handle
+    const DWORD HASH_LENGTH = 32; // 256 bits = 32 bytes
+	BYTE rgbHash[HASH_LENGTH]; 
+	DWORD cbHash = HASH_LENGTH; 
+
+	// Acquire a cryptographic provider context
+    if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) 
+    {
+        std::wcerr << L"Error: CryptAcquireContext failed." << std::endl;
+        file.close();
+        return {};
+	}
+
+	// Create a hash object for MD5
+    if (!CryptCreateHash(hProv, CALG_SHA_256, 0, 0, &hHash))
+    {
+        std::wcerr << L"Error: CryptCreateHash failed." << std::endl;
+        CryptReleaseContext(hProv, 0);
+        file.close();
+        return {};
+    }
+    
+	const size_t BUFFER_SIZE = 65536; // 64 KB buffer
+	std::vector<char> buffer(BUFFER_SIZE);
+
+	while (file.read(buffer.data(), BUFFER_SIZE) || file.gcount() > 0) 
+    {
+		size_t bytesRead = file.gcount();
+		
+        if (!CryptHashData(hHash, reinterpret_cast<BYTE*>(buffer.data()), static_cast<DWORD>(bytesRead), 0)) 
+        {
+            std::wcerr << L"Error: CryptHashData failed." << std::endl;
+            CryptDestroyHash(hHash);
+            CryptReleaseContext(hProv, 0);
+            file.close();
+            return {};
+        }
+    }
+
+    if (!CryptGetHashParam(hHash, HP_HASHVAL, rgbHash, &cbHash, 0)) 
+    {
+        std::wcerr << L"Error: CryptGetHashParam failed." << std::endl;
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+        file.close();
+        return {};
+	}
+
+	CryptDestroyHash(hHash);
+	CryptReleaseContext(hProv, 0);
+    file.close();
+
+	std::ostringstream oss;
+    for (DWORD i = 0; i < cbHash; ++i) 
+    {
+        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(rgbHash[i]);
+	}
+
+    return oss.str();
+}
+
+std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<fs::path>& files)
+{
+	// TODO: Implement the logic to group files by their MD5 hash
+    return {};
+}
+
+void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups)
+{
+	// TODO: Implement the logic to process duplicate groups
+    return;
 }
