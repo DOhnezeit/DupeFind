@@ -68,22 +68,14 @@ int main()
         std::wcout << wIndent << path.filename() << std::endl;
         log << std::string(indent.begin(), indent.end()) << wstringToUtf8(path.filename().wstring()) << std::endl;
     }
-    log.close();
+    
 	std::wcout << L"You can read about the found files in the log!" << std::endl;
+    log.close();
 
-	// Calculate SHA-256 for the first file found in the directory (testing purposes)
-    for (const auto& entry : fs::recursive_directory_iterator(folderPath))
-    {
-        if (fs::is_regular_file(entry.path()))
-        {
-            std::string hexHash = calculateSHA256(entry.path());
-            std::wcout << L"First file: " << entry.path().wstring() << std::endl;
-            std::wcout << L"SHA-256: " << std::wstring(hexHash.begin(), hexHash.end()) << std::endl;
-            break;
-        }
-    }
+    std::wcout << L"\nChecking for duplicate files..." << std::endl;
 
-	// TODO: Continue here with the MD5 calculation and duplicate detection
+    std::map<std::string, std::vector<fs::path>> duplicateGroups = groupFilesByHash(foundPaths);
+    processDuplicateGroups(duplicateGroups);
 
     return 0;
 }
@@ -226,7 +218,7 @@ std::string calculateSHA256(const fs::path& filePath)
         return {};
 	}
 
-	// Create a hash object for MD5
+	// Create a hash object for SHA-256
     if (!CryptCreateHash(hProv, CALG_SHA_256, 0, 0, &hHash))
     {
         std::wcerr << L"Error: CryptCreateHash failed." << std::endl;
@@ -276,12 +268,61 @@ std::string calculateSHA256(const fs::path& filePath)
 
 std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<fs::path>& files)
 {
-	// TODO: Implement the logic to group files by their MD5 hash
-    return {};
+    std::map<std::string, std::vector<fs::path>> hashGroups;
+
+    for (const auto& file : files)
+    {
+        if (!fs::is_regular_file(file)) continue; // Skip directories and non-regular files
+
+        try
+        {
+            std::string hash = calculateSHA256(file);
+            hashGroups[hash].push_back(file);
+        }
+        catch (const std::exception& e)
+        {
+            std::wcerr << L"Error processing file " << file.wstring() << L": " << e.what() << std::endl;
+        }
+    }
+    return hashGroups;
 }
 
 void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups)
 {
-	// TODO: Implement the logic to process duplicate groups
-    return;
+    std::wofstream log("scan_results.txt", std::ios::app);
+
+    if (!log.is_open())
+    {
+        std::wcerr << L"Error: Could not open duplicates log file for writing." << std::endl;
+		return;
+    }
+
+	size_t groupCount = 0;
+    for (const auto& [hash, files] : duplicateGroups)
+    {
+		if (files.size() <= 1) continue; // Skip unique files
+
+        ++groupCount;
+        std::wcout << L"Duplicate group #" << groupCount << L" (SHA-256: " << std::wstring(hash.begin(), hash.end()) << L")" << std::endl;
+        log << L"Duplicate group #" << groupCount << L" (SHA-256: " << std::wstring(hash.begin(), hash.end()) << L")" << std::endl;
+
+        for (const auto& file : files)
+        {
+            std::wcout << L"  " << file.wstring() << std::endl;
+            log << L"  " << file.wstring() << std::endl;
+		}
+    }
+
+    if (groupCount == 0)
+    {
+        std::wcout << L"No duplicate files found." << std::endl;
+        log << L"No duplicate files found." << std::endl;
+    }
+    else
+    {
+        std::wcout << L"Total duplicate groups found: " << groupCount << std::endl;
+        log << L"Total duplicate groups found: " << groupCount << std::endl;
+	}
+
+    log.close();
 }
