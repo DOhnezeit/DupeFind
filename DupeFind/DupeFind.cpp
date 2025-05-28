@@ -15,29 +15,33 @@
 
 namespace fs = std::filesystem; 
 
-fs::path getPath();
+fs::path convertToPath(std::wstring input);
 std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath);
 std::string wstringToUtf8(const std::wstring& wstr);
 std::string calculateSHA256(const fs::path& filePath);
 std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<fs::path>& files);
-void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups);
+size_t processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups);
 
 bool shouldSkipFile(const fs::path& filePath);
 bool isSystemOrEncryptedFile(const fs::path& filePath);
 std::string formatFileSize(uintmax_t bytes);
 
+void handleDuplicateRemoval(const std::map<std::string, std::vector<fs::path>>& duplicateGroups);
+std::wstring getUserInput(const std::wstring& prompt);
+int getUserChoice(const std::wstring& prompt, int minChoice, int maxChoice);
+std::wstring getUserInput(const std::wstring& prompt);
 
 
 int main()
 {
     std::wcout << L"DupeFind is ready!" << std::endl;
-    std::wcout << L"Please enter a folder path to scan: " << std::endl;
 
 	fs::path folderPath;
 
 	while (true) 
 	{
-		folderPath = getPath();
+        std::wstring input = getUserInput(L"Enter folder path to scan: ");
+		folderPath = convertToPath(input);
 		if (folderPath.empty()) 
 		{
 			std::wcout << L"Please enter a valid folder path: " << std::endl;
@@ -49,7 +53,6 @@ int main()
     std::vector<fs::path> foundPaths = getAllFilesAndDirectories(folderPath);
 
     std::wcout << L"\nScan completed. Found " << foundPaths.size() << L" files and directories in: " << folderPath.wstring() << std::endl;
-	std::wcout << L"Here are the results:\n" << std::endl;
 
     const size_t MAX_CONSOLE_DISPLAY = 50;
     bool showInConsole = foundPaths.size() <= MAX_CONSOLE_DISPLAY;
@@ -102,25 +105,23 @@ int main()
     std::wcout << L"\nChecking for duplicate files..." << std::endl;
 
     std::map<std::string, std::vector<fs::path>> duplicateGroups = groupFilesByHash(foundPaths);
-    processDuplicateGroups(duplicateGroups);
+    size_t duplicateGroupCount = processDuplicateGroups(duplicateGroups);
+
+    /*if (duplicateGroupCount > 0)
+    {
+        handleDuplicateRemoval(duplicateGroups);
+    }*/
+	
 
     return 0;
 }
 
-fs::path getPath()
+fs::path convertToPath(std::wstring input)
 {
-    std::wstring folderPath;
-    std::getline(std::wcin, folderPath);
-
-	// This removes leading and trailing whitespace from the input path
-    folderPath.erase(0, folderPath.find_first_not_of(L" \t\r\n"));
-	folderPath.erase(folderPath.find_last_not_of(L" \t\r\n") + 1);
-
-
     try
     {
 		// Convert the input string to a filesystem path object
-        fs::path pathObj(std::move(folderPath));
+        fs::path pathObj(std::move(input));
 
         if (!fs::exists(pathObj))
         {
@@ -267,8 +268,9 @@ std::string calculateSHA256(const fs::path& filePath)
         }
     }
 
-    catch (const std::exception& e) {
-        std::wcerr << L"Error reading file size for: " << filePath.wstring() << std::endl;
+    catch (const std::exception& e) 
+    {
+        std::wcerr << L"Exception caught: " << e.what() << std::endl;
         file.close();
         return {};
     }
@@ -377,14 +379,14 @@ std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<
     return hashGroups;
 }
 
-void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups)
+size_t processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups)
 {
     std::wofstream log("scan_results.txt", std::ios::app);
 
     if (!log.is_open())
     {
         std::wcerr << L"Error: Could not open duplicates log file for writing." << std::endl;
-		return;
+		return 0;
     }
 
 	size_t groupCount = 0;
@@ -457,6 +459,7 @@ void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& 
     }
 
     log.close();
+	return groupCount;
 }
 
 bool shouldSkipFile(const fs::path& filePath)
@@ -506,4 +509,58 @@ std::string formatFileSize(uintmax_t bytes)
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(2) << size << " " << units[unit];
     return oss.str();
+}
+
+void handleDuplicateRemoval(const std::map<std::string, std::vector<fs::path>>& duplicateGroups)
+{
+	std::wcout << L"\n=== DUPLICATE REMOVAL OPTIONS ===" << std::endl;
+	std::wcout << L"Would you like to remove duplicate files?" << std::endl;
+	std::wcout << L"[1] Keep all files" << std::endl;
+    std::wcout << L"[2] Interactive removal" << std::endl;
+    std::wcout << L"[3] Automatic removal (keeps the file with the shortest path)" << std::endl;
+
+    int choice = getUserChoice(L"Pleas enter your choice (1-3): ", 1, 3);
+
+
+}
+
+std::wstring getUserInput(const std::wstring& prompt)
+{
+    if (!prompt.empty())
+    {
+        std::wcout << prompt << std::endl;
+	}
+
+    std::wstring input;
+	std::getline(std::wcin, input);
+
+    input.erase(0, input.find_first_not_of(L" \t\r\n"));
+    input.erase(input.find_last_not_of(L" \t\r\n") + 1);
+
+    return input;
+}
+
+int getUserChoice(const std::wstring& prompt, int minChoice, int maxChoice)
+{
+    while (true)
+    {
+		std::wstring input = getUserInput(prompt);
+
+        try
+        {
+            int choice = std::stoi(input);
+            if (choice >= minChoice && choice <= maxChoice)
+            {
+                return choice;
+            }
+            else
+            {
+                std::wcout << L"Please enter a number between " << minChoice << L" and " << maxChoice << L": ";
+            }
+        }
+        catch (const std::exception&)
+        {
+            std::wcout << L"Please enter a number between " << minChoice << L" and " << maxChoice << L": ";
+        }
+    }
 }
