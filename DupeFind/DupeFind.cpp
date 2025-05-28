@@ -10,6 +10,7 @@
 #include <Windows.h>
 #include <wincrypt.h>
 #include <map>
+#include <iomanip>
 
 
 namespace fs = std::filesystem; 
@@ -20,6 +21,9 @@ std::string wstringToUtf8(const std::wstring& wstr);
 std::string calculateSHA256(const fs::path& filePath);
 std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<fs::path>& files);
 void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups);
+
+bool shouldSkipFile(const fs::path& filePath);
+bool isSystemOrEncryptedFile(const fs::path& filePath);
 
 
 
@@ -46,6 +50,18 @@ int main()
     std::wcout << L"\nScan completed. Found " << foundPaths.size() << L" files and directories in: " << folderPath.wstring() << std::endl;
 	std::wcout << L"Here are the results:\n" << std::endl;
 
+    const size_t MAX_CONSOLE_DISPLAY = 50;
+    bool showInConsole = foundPaths.size() <= MAX_CONSOLE_DISPLAY;
+
+    if (showInConsole) {
+        std::wcout << L"Here are the results:\n" << std::endl;
+    }
+    else {
+        std::wcout << L"Too many files to display in console (" << foundPaths.size() << L" files)." << std::endl;
+        std::wcout << L"Writing all results to log file only...\n" << std::endl;
+    }
+
+
     std::ofstream log("scan_results.txt");
     if (!log.is_open())
     {
@@ -53,7 +69,7 @@ int main()
         return 1;
 	}
 
-
+    size_t fileCount = 0;
     for (const auto& path : foundPaths)
     {
         fs::path relativePath = fs::relative(path, folderPath);
@@ -65,8 +81,18 @@ int main()
         std::wstring wIndent = (depth > 1) ? std::wstring((depth - 1) * 2, L' ') : L"";
         std::string indent = wstringToUtf8(wIndent);
 
-        std::wcout << wIndent << path.filename() << std::endl;
+        if (showInConsole) {
+            std::wcout << wIndent << path.filename() << std::endl;
+        }
+        else {
+            // Show progress every 1000 files
+            if (fileCount % 1000 == 0) {
+                std::wcout << L"Processed " << fileCount << L"/" << foundPaths.size() << L" files..." << std::endl;
+            }
+        }
+
         log << std::string(indent.begin(), indent.end()) << wstringToUtf8(path.filename().wstring()) << std::endl;
+        fileCount++;
     }
     
 	std::wcout << L"You can read about the found files in the log!" << std::endl;
@@ -136,10 +162,16 @@ std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath)
 				std::wstring dirName = it->path().filename().wstring();
                 std::transform(dirName.begin(), dirName.end(), dirName.begin(), ::tolower);
 
-                if (dirName == L"$recycle.bin")
+                if (dirName == L"$recycle.bin" || dirName == L"system volume information")
                 {
-                    it.disable_recursion_pending(); // Skip the Recycle Bin directory
+					it.disable_recursion_pending(); // Skip the Recycle Bin directory and System Volume Information
 					continue;
+                }
+
+                if (shouldSkipFile(it->path()))
+                {
+                    std::wcout << L"Skipping system file: " << it->path().filename().wstring() << std::endl;
+                    continue;
                 }
 
                 results.push_back(it->path());
@@ -197,6 +229,8 @@ std::string wstringToUtf8(const std::wstring& wstr)
 
 std::string calculateSHA256(const fs::path& filePath)
 {
+    std::wcout << L"Hashing: " << filePath.filename().wstring() << std::endl;
+
 	std::ifstream file(filePath, std::ios::binary);
     if (!file.is_open())
     {
@@ -325,4 +359,41 @@ void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& 
 	}
 
     log.close();
+}
+
+bool shouldSkipFile(const fs::path& filePath)
+{
+    std::wstring fileName = filePath.filename().wstring();
+    std::transform(fileName.begin(), fileName.end(), fileName.begin(), ::tolower);
+
+	// Just a few common files that we want to skip
+    if (fileName == L"desktop.ini" ||
+        fileName == L"thumbs.db" ||
+        fileName == L"folder.jpg" ||
+        fileName == L"albumartsmall.jpg" ||
+        fileName == L"albumart_{*.jpg")
+    {
+        return true;
+    }
+
+    // Check if it's a system/hidden file using Windows attributes
+    return isSystemOrEncryptedFile(filePath);
+}
+
+bool isSystemOrEncryptedFile(const fs::path& filePath)
+{
+
+	DWORD attributes = GetFileAttributesW(filePath.wstring().c_str());
+
+    if (attributes == INVALID_FILE_ATTRIBUTES)
+    {
+        return false; // If we can't get attributes, we assume it's not a system file
+	}
+
+	if (attributes & FILE_ATTRIBUTE_SYSTEM || attributes & FILE_ATTRIBUTE_ENCRYPTED || attributes & FILE_ATTRIBUTE_HIDDEN) // Check if the file is a system file, encrypted, or hidden
+    {
+        return true; // It's a system file
+	}
+  
+    return false;
 }
