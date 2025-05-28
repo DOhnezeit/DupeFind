@@ -24,6 +24,7 @@ void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& 
 
 bool shouldSkipFile(const fs::path& filePath);
 bool isSystemOrEncryptedFile(const fs::path& filePath);
+std::string formatFileSize(uintmax_t bytes);
 
 
 
@@ -170,7 +171,11 @@ std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath)
 
                 if (shouldSkipFile(it->path()))
                 {
-                    std::wcout << L"Skipping system file: " << it->path().filename().wstring() << std::endl;
+					// Reduces console spam
+                    if (results.size() < 1000)
+                    { 
+                        std::wcout << L"Skipping system file: " << it->path().filename().wstring() << std::endl;
+                    }
                     continue;
                 }
 
@@ -179,6 +184,7 @@ std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath)
             catch (const std::system_error& ex) {
                 std::wcerr << L"Failed to process: " << it->path().wstring() << std::endl;
                 std::wcerr << L"Error processing entry: " << ex.what() << std::endl;
+                continue;
             }
         }
     }
@@ -237,6 +243,36 @@ std::string calculateSHA256(const fs::path& filePath)
         std::wcerr << L"Error: Could not open file " << filePath.wstring() << std::endl;
 		return {};
     }
+
+	// Check file size before proceeding, don't need to hash empty files
+    try
+    {
+		file.seekg(0, std::ios::end);
+		std::streampos fileSize = file.tellg();
+		file.seekg(0, std::ios::beg);
+
+		// HACK: For now, skip very large files (>2GB) that might cause issues, think of a different way to handle this later
+        if (fileSize > 2LL * 1024 * 1024 * 1024)
+        {
+            std::wcout << L"Skipping large file (>2GB): " << filePath.filename().wstring() << std::endl;
+            file.close();
+            return {};
+        }
+
+        // Skip empty files
+        if (fileSize == 0)
+        {
+            file.close();
+            return "empty_file"; // Special hash for empty files
+        }
+    }
+
+    catch (const std::exception& e) {
+        std::wcerr << L"Error reading file size for: " << filePath.wstring() << std::endl;
+        file.close();
+        return {};
+    }
+
 
 	HCRYPTPROV hProv = NULL; // Cryptographic provider handle
 	HCRYPTHASH hHash = NULL; // Hash handle
@@ -303,6 +339,16 @@ std::string calculateSHA256(const fs::path& filePath)
 std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<fs::path>& files)
 {
     std::map<std::string, std::vector<fs::path>> hashGroups;
+	size_t processedFiles = 0;
+    size_t totalFiles = 0;
+
+    // Count regular files first
+    for (const auto& file : files) 
+    {
+        if (fs::is_regular_file(file)) totalFiles++;
+	}
+
+    std::wcout << L"Processing " << totalFiles << L" files for duplicate detection..." << std::endl;
 
     for (const auto& file : files)
     {
@@ -310,7 +356,17 @@ std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<
 
         try
         {
+            processedFiles++;
+
+            if (totalFiles <= 100 || processedFiles % 100 == 0) // Show progress every 100 files
+            {
+                std::wcout << L"Progress: " << processedFiles << L"/" << totalFiles << L" - " << file.filename().wstring() << std::endl;
+			}
+
             std::string hash = calculateSHA256(file);
+
+			if (hash.empty()) continue; // Skip files that failed to hash
+
             hashGroups[hash].push_back(file);
         }
         catch (const std::exception& e)
@@ -332,19 +388,51 @@ void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& 
     }
 
 	size_t groupCount = 0;
+    size_t totalDuplicateFiles = 0;
+	uintmax_t totalDuplicateSize = 0;
+
+    log << L"\n\n=== DUPLICATE FILES ANALYSIS ===" << std::endl;
+    std::wcout << L"\n=== DUPLICATE FILES ANALYSIS ===" << std::endl;
+
     for (const auto& [hash, files] : duplicateGroups)
     {
-		if (files.size() <= 1) continue; // Skip unique files
+        if (files.size() <= 1) continue; // Skip unique files
 
         ++groupCount;
-        std::wcout << L"Duplicate group #" << groupCount << L" (SHA-256: " << std::wstring(hash.begin(), hash.end()) << L")" << std::endl;
-        log << L"Duplicate group #" << groupCount << L" (SHA-256: " << std::wstring(hash.begin(), hash.end()) << L")" << std::endl;
+        totalDuplicateFiles += files.size() - 1; // count duplicates excluding the original
+
+        uintmax_t fileSize = 0;
+        try
+        {
+            fileSize = fs::file_size(files[0]);
+            totalDuplicateSize += fileSize * (files.size() - 1);  // accumulate wasted space
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            std::wcerr << L"Error getting file size for " << files[0].wstring() << L": " << e.what() << std::endl;
+            continue;
+        }
+
+        std::string fileSizeStr = formatFileSize(fileSize);
+        std::wstring fileSizeWStr = std::wstring(fileSizeStr.begin(), fileSizeStr.end());
+
+        std::wstring hashWStr = std::wstring(hash.begin(), hash.end());
+
+        std::wcout << L"Duplicate group #" << groupCount << L" (" << files.size() << L" files, "
+            << fileSizeWStr << L" each)" << std::endl;
+        std::wcout << L"SHA-256: " << hashWStr << std::endl;
+
+        log << L"Duplicate group #" << groupCount << L" (" << files.size() << L" files, "
+            << fileSizeWStr << L" each)" << std::endl;
+        log << L"SHA-256: " << hashWStr << std::endl;
 
         for (const auto& file : files)
         {
             std::wcout << L"  " << file.wstring() << std::endl;
             log << L"  " << file.wstring() << std::endl;
 		}
+        std::wcout << std::endl; // Add blank line between groups
+        log << std::endl;
     }
 
     if (groupCount == 0)
@@ -354,9 +442,19 @@ void processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& 
     }
     else
     {
+        std::string totalSizeStr = formatFileSize(totalDuplicateSize);
+        std::wstring totalSizeWStr(totalSizeStr.begin(), totalSizeStr.end());
+
+        std::wcout << L"=== SUMMARY ===" << std::endl;
         std::wcout << L"Total duplicate groups found: " << groupCount << std::endl;
+        std::wcout << L"Total duplicate files: " << totalDuplicateFiles << std::endl;
+        std::wcout << L"Total wasted space: " << totalSizeWStr << std::endl;
+
+        log << L"=== SUMMARY ===" << std::endl;
         log << L"Total duplicate groups found: " << groupCount << std::endl;
-	}
+        log << L"Total duplicate files: " << totalDuplicateFiles << std::endl;
+        log << L"Total wasted space: " << totalSizeWStr << std::endl;
+    }
 
     log.close();
 }
@@ -366,12 +464,8 @@ bool shouldSkipFile(const fs::path& filePath)
     std::wstring fileName = filePath.filename().wstring();
     std::transform(fileName.begin(), fileName.end(), fileName.begin(), ::tolower);
 
-	// Just a few common files that we want to skip
-    if (fileName == L"desktop.ini" ||
-        fileName == L"thumbs.db" ||
-        fileName == L"folder.jpg" ||
-        fileName == L"albumartsmall.jpg" ||
-        fileName == L"albumart_{*.jpg")
+	// Skip desktop.ini files, which are used by Windows to store folder view settings
+    if (fileName == L"desktop.ini")
     {
         return true;
     }
@@ -396,4 +490,20 @@ bool isSystemOrEncryptedFile(const fs::path& filePath)
 	}
   
     return false;
+}
+
+std::string formatFileSize(uintmax_t bytes)
+{
+    const char* units[] = { "B", "KB", "MB", "GB", "TB" };
+    int unit = 0;
+    double size = static_cast<double>(bytes);
+
+    while (size >= 1024.0 && unit < 4) {
+        size /= 1024.0;
+        unit++;
+    }
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << size << " " << units[unit];
+    return oss.str();
 }
