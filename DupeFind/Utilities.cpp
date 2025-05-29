@@ -14,7 +14,8 @@ std::string formatFileSize(uintmax_t bytes)
     int unit = 0;
     double size = static_cast<double>(bytes);
 
-    while (size >= 1024.0 && unit < 4) {
+    while (size >= 1024.0 && unit < 4) 
+    {
         size /= 1024.0;
         unit++;
     }

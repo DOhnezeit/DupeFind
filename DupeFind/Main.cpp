@@ -14,7 +14,6 @@
 #include <map>
 
 
-
 int main()
 {
     std::wcout << L"DupeFind is ready!" << std::endl;
@@ -93,6 +92,8 @@ int main()
 
     std::map<std::string, std::vector<fs::path>> duplicateGroups = groupFilesByHash(foundPaths);
     size_t duplicateGroupCount = processDuplicateGroups(duplicateGroups);
+
+    // TODO: Remove duplicates in main
 
     /*if (duplicateGroupCount > 0)
     {

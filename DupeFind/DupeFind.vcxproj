@@ -129,7 +129,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="DupeFind.cpp" />
+    <ClCompile Include="Main.cpp" />
     <ClCompile Include="DuplicateManager.cpp" />
     <ClCompile Include="FileScanner.cpp" />
     <ClCompile Include="HashCalculator.cpp" />
