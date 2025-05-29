@@ -119,6 +119,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -129,6 +130,20 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DupeFind.cpp" />
+    <ClCompile Include="DuplicateManager.cpp" />
+    <ClCompile Include="FileScanner.cpp" />
+    <ClCompile Include="HashCalculator.cpp" />
+    <ClCompile Include="InputHandler.cpp" />
+    <ClCompile Include="ReportGenerator.cpp" />
+    <ClCompile Include="ReportGenerator.h" />
+    <ClCompile Include="Utilities.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="DuplicateManager.h" />
+    <ClInclude Include="FileScanner.h" />
+    <ClInclude Include="HashCalculator.h" />
+    <ClInclude Include="InputHandler.h" />
+    <ClInclude Include="Utilities.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
