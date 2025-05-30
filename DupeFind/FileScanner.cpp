@@ -1,10 +1,17 @@
-#include "FileScanner.h"
+﻿#include "FileScanner.h"
+#include "Utilities.h" 
 
 #include <iostream>
+#include <filesystem>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <unordered_set>
+#include <utility>
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include <unordered_set>
+
 
 fs::path convertToPath(std::wstring input)
 {
@@ -30,14 +37,17 @@ fs::path convertToPath(std::wstring input)
 
     catch (const fs::filesystem_error& exception)
     {
-        std::wcout << L"Filesystem error: " << exception.what() << std::endl;
-        std::wcout << L"Failed on path: " << exception.path1().wstring() << std::endl;
+        printUnicodeMulti(true,
+            L"Filesystem error: ",
+            utf8ToWstring(exception.what()),
+            L"\nFailed on path: ",
+            exception.path1().wstring());
 
-        return {};
+		return {};
     }
     catch (const std::exception& exception)
     {
-        std::wcout << L"Error: " << exception.what() << std::endl;
+        printUnicodeMulti(true, L"Error: ", utf8ToWstring(exception.what()));
         return {};
     }
 }
@@ -65,22 +75,25 @@ std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath)
                     // Reduces console spam
                     if (results.size() < 1000)
                     {
-                        std::wcout << L"Skipping system file: " << it->path().filename().wstring() << std::endl;
+                        printUnicodeMulti(true, L"Skipping system file: ", it->path().filename().wstring());
                     }
                     continue;
                 }
 
                 results.push_back(it->path());
             }
-            catch (const std::system_error& ex) {
-                std::wcerr << L"Failed to process: " << it->path().wstring() << std::endl;
-                std::wcerr << L"Error processing entry: " << ex.what() << std::endl;
+            catch (const std::system_error& ex) 
+            {
+                printUnicodeMulti(true, L"Failed to process: ", it->path().wstring());
+                printUnicodeMulti(true, L"Error processing entry: ", utf8ToWstring(ex.what()));
+
                 continue;
             }
         }
     }
-    catch (const fs::filesystem_error& ex) {
-        std::wcerr << L"Error accessing directory: " << ex.what() << std::endl;
+    catch (const fs::filesystem_error& ex) 
+    {
+        printUnicodeMulti(true, L"Error accessing directory: ", utf8ToWstring(ex.what()));
     }
 
     return results;

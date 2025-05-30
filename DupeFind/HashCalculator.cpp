@@ -1,4 +1,4 @@
-#include "HashCalculator.h"
+﻿#include "HashCalculator.h"
 #include "Utilities.h"
 
 #include <iostream>
@@ -15,7 +15,7 @@ std::string calculateSHA256(const fs::path& filePath)
 {  
     if (!fs::exists(filePath)) return "empty_file";  
 
-    std::wcout << L"Calculating hash for file: " << filePath.wstring() << std::endl; 
+	printUnicodeMulti(true, L"Calculating hash for file: ", filePath.wstring());
 
     HANDLE hFile = CreateFileW(  
         filePath.wstring().c_str(),
@@ -29,14 +29,16 @@ std::string calculateSHA256(const fs::path& filePath)
     if (hFile == INVALID_HANDLE_VALUE)  
     {  
 		DWORD error = GetLastError();
-        std::wcerr << L"Error: Could not open file " << filePath.wstring() << std::endl << L" (Error code: " << error << L")" << std::endl;;
+		std::wstring wsError = std::to_wstring(error);
+
+		printUnicodeMulti(true, L"Error opening file: ", filePath.wstring(), L" (Error code: ", wsError, L")");
         return {};  
     }  
 
     LARGE_INTEGER fileSizeLI;
     if (!GetFileSizeEx(hFile, &fileSizeLI))
     {
-        std::wcerr << L"Error: Could not get file size " << filePath.wstring() << std::endl;
+		printUnicodeMulti(true, L"Error getting file size: ", filePath.wstring());
         CloseHandle(hFile);
         return {};
     }
@@ -50,7 +52,7 @@ std::string calculateSHA256(const fs::path& filePath)
 
     if (fileSizeLI.QuadPart > 2LL * 1024 * 1024 * 1024) // 2GB limit hack  
     {  
-        std::wcout << L"Skipping large file (>2GB): " << filePath.filename().wstring() << std::endl;  
+		printUnicodeMulti(true, L"Skipping large file (>2GB): ", filePath.wstring());
         CloseHandle(hFile);  
         return {};  
     }  
@@ -108,7 +110,7 @@ std::string calculateSHA256(const fs::path& filePath)
     CloseHandle(hFile);  
 
     std::ostringstream oss;  
-    for (DWORD i = 0; i < cbHash; ++i)  
+    for (DWORD i = 0; i < cbHash; ++i)
     {  
         oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(rgbHash[i]);  
     }  
@@ -140,8 +142,11 @@ std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<
 
             if (totalFiles <= 100 || processedFiles % 100 == 0) // Show progress every 100 files
             {
-				// FIXME: This still doesn't handle filenames with special characters well, problem spans the whole codebase
-                std::cout << "Progress: " << processedFiles << "/" << totalFiles << " - " << safeFilenameDisplay(file) << std::endl;
+                std::wstring wsProcessed = std::to_wstring(processedFiles);
+                std::wstring wsTotal = std::to_wstring(totalFiles);
+
+				// CHECK: This might or might not work, maybe test more
+                printUnicodeMulti(true, L"Progress: ", wsProcessed, L"/", wsTotal, L" - ", file.wstring());
             }
 
             std::string hash = calculateSHA256(file);
@@ -152,7 +157,8 @@ std::map<std::string, std::vector<fs::path>> groupFilesByHash(const std::vector<
         }
         catch (const std::exception& e)
         {
-            std::wcerr << L"Error processing file " << file.wstring() << L": " << e.what() << std::endl;
+            std::wstring wsExceptionMsg = utf8ToWstring(e.what());
+            printUnicodeMulti(true, L"Error processing file ", file.wstring(), wsExceptionMsg);
         }
     }
     std::wcout << L"Finished processing files." << std::endl;

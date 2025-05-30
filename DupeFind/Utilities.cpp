@@ -1,12 +1,15 @@
-#include "Utilities.h"
+﻿#include "Utilities.h"
 
 #include <iomanip>
 #include <sstream>
 #include <string>
 #include <filesystem>
+#include <fstream>
 
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <windows.h>
+
+
 
 
 namespace fs = std::filesystem;
@@ -66,34 +69,83 @@ std::string wstringToUtf8(const std::wstring& wstr)
     return utf8str;
 }
 
-std::string safeFilenameDisplay(const fs::path& filePath)
+std::wstring utf8ToWstring(const std::string& str)
 {
-    try
-    {
-        std::wstring filename_wstr = filePath.filename().wstring();
+    if (str.empty()) return std::wstring();
 
-        std::string utf8_filename = wstringToUtf8(filename_wstr);
+    // Calculate the size needed for the wide string buffer
+    int size_needed = MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        str.data(),
+        (int)str.size(),
+        nullptr,
+        0
+    );
 
-		// If the conversion to UTF-8 was successful, return the UTF-8 string
-        if (!utf8_filename.empty()) return utf8_filename;
-        
-		// If conversion failed, return the raw filename as a fallback
-        std::string generic_str = filePath.filename().generic_string();
+    if (size_needed <= 0)
+        return std::wstring();
 
-		// If the generic string is not empty, it means we can display it safely
-        if (!generic_str.empty()) return generic_str + " [encoding issue]";
+    std::wstring wstr(size_needed, 0);
 
-		// If both conversions failed, return a placeholder indicating an invalid filename
-        return "[Invalid filename - encoding error]";
-    }
+    // Perform the conversion from UTF-8 to wide char
+    int converted_chars = MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        str.data(),
+        (int)str.size(),
+        &wstr[0],
+        size_needed
+    );
 
-    catch (const std::exception& e)
-    {
-        return std::string("[Error reading filename: ") + e.what() + "]";
-	}
+    if (converted_chars <= 0)
+        return std::wstring();
 
-    catch (...)
-    {
-        return "[Unknown error reading filename]";
-	}
+    return wstr;
 }
+
+void printUnicode(const std::wstring& text, bool newline)
+{
+	static HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD written;
+
+    WriteConsoleW(hConsole, text.c_str(), (DWORD)text.length(), &written, nullptr);
+
+    if (newline)
+    {
+        WriteConsoleW(hConsole, L"\n", 1, &written, nullptr);
+    }
+}
+
+void printUnicode(const wchar_t* text, bool newline)
+{
+    printUnicode(std::wstring(text), newline);
+}
+
+void writeUtf8ToFile(const std::wstring& text, const std::wstring& filePath, bool newline)
+{
+    std::wofstream log(filePath, std::ios::app | std::ios::binary);
+    if (log.is_open())
+    {
+        // HACK: Write BOM once if needed, might change later
+        static bool wroteBOM = false;
+        if (!wroteBOM)
+        {
+            wchar_t bom = 0xFEFF;
+            log.write(&bom, 1);
+            wroteBOM = true;
+        }
+
+        log << text;
+
+        if (newline)
+        {
+            log << L"\n";
+		}
+    }
+}
+
+
+
+
+

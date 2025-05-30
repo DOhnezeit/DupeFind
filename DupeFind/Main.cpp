@@ -1,4 +1,4 @@
-// Project: DupeFind, Find duplicate files in a directory
+﻿// Project: DupeFind, Find duplicate files in a directory
 #include "FileScanner.h"
 #include "HashCalculator.h"
 #include "DuplicateManager.h"
@@ -11,11 +11,20 @@
 #include <vector>
 #include <map>
 
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <consoleapi.h>
+#include <processenv.h>
 
 namespace fs = std::filesystem;
 
 int main()
 {
+    std::wstring w = L"こんにちは";
+	DWORD written;
+	WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), w.c_str(), (DWORD)w.length(), &written, nullptr);
+
+
 	std::wcout << L"DupeFind is ready!" << std::endl;
 	fs::path folderPath;
 	while (true) 

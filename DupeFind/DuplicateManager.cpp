@@ -1,4 +1,4 @@
-#include "DuplicateManager.h"
+﻿#include "DuplicateManager.h"
 #include "InputHandler.h"
 #include "Utilities.h" 
 #include "ReportGenerator.h"
@@ -73,7 +73,7 @@ void interactiveRemoval(const std::map<std::string, std::vector<fs::path>>& dupl
 
         for (size_t i = 0; i < files.size(); ++i)
         {
-            std::wcout << L"  " << (i + 1) << L". " << files[i].wstring() << std::endl;
+            printUnicodeMulti(true, L"  ", std::to_wstring(i + 1), L". ", files[i].wstring());
         }
 
         std::wcout << L"\nOptions:" << std::endl;
@@ -94,12 +94,12 @@ void interactiveRemoval(const std::map<std::string, std::vector<fs::path>>& dupl
         if (choice == -1)
         {
             fileToKeep = selectBestFileToKeep(files);
-            std::wcout << L"Auto-selected: " << fileToKeep.wstring() << std::endl;
+			printUnicodeMulti(true, L"Auto-selected: ", fileToKeep.wstring());
         }
         else
         {
             fileToKeep = files[choice - 1];
-            std::wcout << L"Keeping file: " << fileToKeep.wstring() << std::endl;
+            printUnicodeMulti(true, L"Keeping file: ", fileToKeep.wstring());
         }
 
         // Collect files to delete
@@ -115,7 +115,7 @@ void interactiveRemoval(const std::map<std::string, std::vector<fs::path>>& dupl
         std::wcout << L"\nFiles to be moved to Recycle Bin:" << std::endl;
         for (const auto& file : filesToDelete)
         {
-            std::wcout << L"  " << file.wstring() << std::endl;
+            printUnicodeMulti(true, L"  ", file.wstring());
         }
 
         if (getUserConfirmation(L"Are you sure you want to continue? "))
@@ -145,6 +145,7 @@ void interactiveRemoval(const std::map<std::string, std::vector<fs::path>>& dupl
 
     if (!allDeletedFiles.empty() || !allKeptFiles.empty())
     {
+        // TODO: Update this to handle special characters
         writeDeletionLog(allDeletedFiles, allKeptFiles, "INTERACTIVE", totalDeleted, totalSizeDeleted);
     }
 }
@@ -182,13 +183,13 @@ void automaticRemoval(const std::map<std::string, std::vector<fs::path>>& duplic
 	std::wcout << L"\nFiles to be kept (shortest paths):" << std::endl;
     for (const auto& file : filesToKeep)
     {
-        std::wcout << L"  KEEP: " << file.wstring() << std::endl;
+        printUnicodeMulti(true, L"  KEEP: ", file.wstring());
 	}
 
     std::wcout << L"\nFiles to be moved to Recycle Bin:" << std::endl;
     for (const auto& file : filesToDelete)
     {
-        std::wcout << L"  DELETE: " << file.wstring() << std::endl;
+        printUnicodeMulti(true, L"  DELETE: ", file.wstring());
     }
 
 	std::wcout << L"\nTotal files to delete: " << filesToDelete.size() << std::endl;
@@ -212,13 +213,23 @@ void automaticRemoval(const std::map<std::string, std::vector<fs::path>>& duplic
             {
                 successCount++;
 				totalSizeDeleted += fileSize;
-				std::wcout << L"Moved to Recycle Bin: " << file.wstring() << std::endl;
+                printUnicodeMulti(true, L"Moved to Recycle Bin: ", file.wstring());
             }
         }
         catch (const fs::filesystem_error& e)
         {
-            std::wcerr << L"Error deleting " << file.wstring() << L": " << e.what() << std::endl;
+            printUnicodeMulti(false, L"Error deleting file: ", file.wstring(), L": ");
+            std::wcerr << e.what() << std::endl;
 		}
+        catch (const std::exception& e)
+        {
+            printUnicodeMulti(false, L"Unexpected error deleting file: ", file.wstring(), L": ");
+            std::wcerr << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            printUnicodeMulti(true, L"Unknown error deleting file: ", file.wstring());
+        }
     }
     writeDeletionLog(filesToDelete, filesToKeep, "AUTOMATIC", successCount, totalSizeDeleted);
 }
@@ -229,7 +240,7 @@ fs::path selectBestFileToKeep(const std::vector<fs::path>& files)
 
     for (const auto& file : files)
     {
-        if (file.string().length() < bestFile.string().length())
+        if (file.wstring().length() < bestFile.wstring().length())
         {
             bestFile = file;
         }
@@ -242,7 +253,7 @@ bool safeDeleteFile(const fs::path& filePath, bool useRecycleBin)
 {
     if (!fs::exists(filePath))
     {
-        std::wcerr << L"Can't delete file. File does not exist: " << filePath.wstring() << std::endl;
+        printUnicodeMulti(true, L"Can't delete file. File does not exist: ", filePath.wstring());
         return false;
     }
 
@@ -259,7 +270,7 @@ bool safeDeleteFile(const fs::path& filePath, bool useRecycleBin)
         int result = SHFileOperationW(&fileOp);
         if (result != 0 || fileOp.fAnyOperationsAborted)
         {
-            std::wcerr << L"Failed to move file to Recycle Bin: " << filePath.wstring() << std::endl;
+            printUnicodeMulti(true, L"Failed to move file to Recycle Bin: ", filePath.wstring());
 			return false;
         }
 
@@ -276,7 +287,7 @@ bool safeDeleteFile(const fs::path& filePath, bool useRecycleBin)
         {
             std::string errorMsg = e.what();
             std::wstring wErrorMsg(errorMsg.begin(), errorMsg.end());
-            std::wcerr << L"Error deleting file: " << wErrorMsg << std::endl;
+            printUnicodeMulti(true, L"Error deleting file: ", wErrorMsg);
             return false;
 		}
     }
