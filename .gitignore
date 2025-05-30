@@ -403,3 +403,4 @@ FodyWeavers.xsd
 # Scan results
 DupeFind/scan_results
 /DupeFind/scan_results.txt
+/DupeFind/duplicate_log.txt
