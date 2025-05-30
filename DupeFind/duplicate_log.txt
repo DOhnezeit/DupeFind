@@ -1,0 +1,22 @@
+=== DUPLICATE FILES ANALYSIS ===
+
+=== SUMMARY ===
+Total duplicate groups found: 2
+Total duplicate files: 2
+Total wasted space: 20.91 MB
+
+Duplicate group #1 (2 files, 20.89 MB each)
+SHA-256: 4fe294dc45463f11405a6c591f05cbaead3718dbda8157beba1cc23595503af3
+  D:\BACKUPS\Test\Digitaler Wahlkampf 
+=== AUTOMATIC REMOVAL ===
+Timestamp: 2025-05-30 06:23:01
+Total files processed: 2
+Successfully deleted: 2
+Total space freed: 20.91 MB
+
+Files kept:
+  KEEP: D:\BACKUPS\Test\Test2\Digitaler Wahlkampf.ppsx
+  KEEP: D:\BACKUPS\Test\Digitaler Wahlkampf2.docx
+
+Files moved to Recycle Bin:
+  DELETE: D:\BACKUPS\Test\Digitaler Wahlkampf 

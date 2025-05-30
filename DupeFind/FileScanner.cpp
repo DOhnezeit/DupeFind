@@ -4,6 +4,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <unordered_set>
 
 fs::path convertToPath(std::wstring input)
 {
@@ -95,7 +96,7 @@ bool isSystemOrEncryptedFile(const fs::path& filePath)
         return false; // If we can't get attributes, we assume it's not a system file
     }
 
-    if (attributes & FILE_ATTRIBUTE_SYSTEM || attributes & FILE_ATTRIBUTE_ENCRYPTED || attributes & FILE_ATTRIBUTE_HIDDEN) // Check if the file is a system file, encrypted, or hidden
+    if (attributes & FILE_ATTRIBUTE_SYSTEM || attributes & FILE_ATTRIBUTE_ENCRYPTED || attributes & FILE_ATTRIBUTE_HIDDEN || attributes & FILE_ATTRIBUTE_REPARSE_POINT) // Check if the file is a system file, encrypted, or hidden
     {
         return true; // It's a system file
     }
@@ -108,12 +109,22 @@ bool shouldSkipFile(const fs::path& filePath)
     std::wstring fileName = filePath.filename().wstring();
     std::transform(fileName.begin(), fileName.end(), fileName.begin(), ::tolower);
 
+    std::wstring ext = filePath.extension().wstring();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
+
+    static const std::unordered_set<std::wstring> skippedExtensions = 
+    {
+        L".sys", L".log", L".tmp", L".bak", L".swp", L".dll"
+    };
+
+	if (skippedExtensions.count(ext)) return true; // Skip files with these extensions
+    if (isSystemOrEncryptedFile(filePath)) return true;
+
     // Skip desktop.ini files, which are used by Windows to store folder view settings
     if (fileName == L"desktop.ini")
     {
         return true;
     }
 
-    // Check if it's a system/hidden file using Windows attributes
-    return isSystemOrEncryptedFile(filePath);
+    return false;
 }

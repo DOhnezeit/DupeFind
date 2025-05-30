@@ -52,17 +52,7 @@ int getUserChoiceRange(const std::wstring& prompt, int minChoice, int maxChoice,
 
 bool getUserConfirmation(const std::wstring& prompt, bool defaultValue)
 {
-	std::wcout << prompt;
     std::wstring input = getUserInput(prompt);
-
-    if (defaultValue)
-    {
-		std::wcout << L" (Y/n): ";
-    }
-    else 
-    {
-        std::wcout << L" (y/N): ";
-	}
 
 	if (input.empty())
 	{

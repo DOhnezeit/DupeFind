@@ -3,10 +3,13 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <filesystem>
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+
+namespace fs = std::filesystem;
 
 std::string formatFileSize(uintmax_t bytes)
 {
@@ -51,7 +54,7 @@ std::string wstringToUtf8(const std::wstring& wstr)
         0,
         wstr.data(),
         (int)wstr.size(),
-        &utf8str[0],
+        utf8str.data(),
         size_needed,
         nullptr,
         nullptr
@@ -61,4 +64,36 @@ std::string wstringToUtf8(const std::wstring& wstr)
         return std::string();
 
     return utf8str;
+}
+
+std::string safeFilenameDisplay(const fs::path& filePath)
+{
+    try
+    {
+        std::wstring filename_wstr = filePath.filename().wstring();
+
+        std::string utf8_filename = wstringToUtf8(filename_wstr);
+
+		// If the conversion to UTF-8 was successful, return the UTF-8 string
+        if (!utf8_filename.empty()) return utf8_filename;
+        
+		// If conversion failed, return the raw filename as a fallback
+        std::string generic_str = filePath.filename().generic_string();
+
+		// If the generic string is not empty, it means we can display it safely
+        if (!generic_str.empty()) return generic_str + " [encoding issue]";
+
+		// If both conversions failed, return a placeholder indicating an invalid filename
+        return "[Invalid filename - encoding error]";
+    }
+
+    catch (const std::exception& e)
+    {
+        return std::string("[Error reading filename: ") + e.what() + "]";
+	}
+
+    catch (...)
+    {
+        return "[Unknown error reading filename]";
+	}
 }
