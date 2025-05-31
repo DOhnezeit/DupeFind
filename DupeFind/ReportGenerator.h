@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <string>
 #include <vector>
@@ -14,3 +14,5 @@ void writeScanLog(const std::vector<fs::path>& paths, const fs::path& basePath, 
 void writeDeletionLog(const std::vector<fs::path>& deletedFiles, const std::vector<fs::path>& keptFiles, const std::string& removalType, size_t successCount, uintmax_t totalSizeDeleted);
 
 std::wstring getCurrentTimestamp();
+
+void resetLogFiles();

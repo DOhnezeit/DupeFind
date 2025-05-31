@@ -1,33 +1,30 @@
 ﻿#include "FileScanner.h"
 #include "Utilities.h" 
 
-#include <iostream>
 #include <filesystem>
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <unordered_set>
-#include <utility>
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
 
-fs::path convertToPath(std::wstring input)
+fs::path convertToPath(const std::wstring& input)
 {
     try
     {
-        // Convert the input string to a filesystem path object
-        fs::path pathObj(std::move(input));
+        fs::path pathObj(input);
 
         if (!fs::exists(pathObj))
         {
-            std::wcout << L"Error: Path does not exist." << std::endl;
+            printUnicodeMulti(true, L"Error: Path does not exist: ", pathObj.wstring());
             return {};
         }
         if (!fs::is_directory(pathObj))
         {
-            std::wcout << L"Error: Path is not a directory." << std::endl;
+            printUnicodeMulti(true, L"Error: Path is not a directory: ", pathObj.wstring());
             return {};
         }
 

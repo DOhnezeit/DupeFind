@@ -12,6 +12,8 @@ std::string formatFileSize(uintmax_t bytes);
 void printUnicode(const std::wstring& text, bool newline = false);
 void printUnicode(const wchar_t* text, bool newline = false);
 
+void writeUnicodeToFile(const std::wstring& text, const std::wstring& filePath, bool newline = true, bool append = true);
+
 template <typename... Args>
 void printUnicodeMulti(bool newline, Args&&... args)
 {
@@ -20,6 +22,5 @@ void printUnicodeMulti(bool newline, Args&&... args)
     printUnicode(combinedText, newline);
 }
 
-void writeUtf8ToFile(const std::wstring& text, const std::wstring& filePath, bool newline = false);
 
 

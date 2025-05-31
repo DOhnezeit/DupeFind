@@ -4,6 +4,7 @@
 #include "DuplicateManager.h"
 #include "InputHandler.h"
 #include "ReportGenerator.h"
+#include "Utilities.h"
 
 #include <iostream>
 #include <filesystem>
@@ -11,25 +12,25 @@
 #include <vector>
 #include <map>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <consoleapi.h>
-#include <processenv.h>
+#include <io.h>
+#include <fcntl.h>
 
 namespace fs = std::filesystem;
 
 int main()
 {
-    std::wstring w = L"こんにちは";
-	DWORD written;
-	WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), w.c_str(), (DWORD)w.length(), &written, nullptr);
+	(void)_setmode(_fileno(stdin), _O_U16TEXT);
+	(void)_setmode(_fileno(stdout), _O_U16TEXT);
+	(void)_setmode(_fileno(stderr), _O_U16TEXT);
 
+	resetLogFiles();
 
 	std::wcout << L"DupeFind is ready!" << std::endl;
 	fs::path folderPath;
 	while (true) 
 	{
         std::wstring input = getUserInput(L"Enter folder path to scan: ");
+		printUnicodeMulti(true, L"DEBUG Input Path: ", input); // TODO: Remove this line after debugging
 		folderPath = convertToPath(input);
 		if (folderPath.empty()) 
 		{
@@ -55,6 +56,10 @@ int main()
         handleDuplicateRemoval(duplicateGroups);
     }
 	
+	std::wcout << L"\nPress enter to exit...";
+	std::wstring quitInput;
+	std::getline(std::wcin, quitInput);
+
     return 0;
 }
 

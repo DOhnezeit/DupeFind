@@ -1,4 +1,4 @@
-#include "ReportGenerator.h"
+﻿#include "ReportGenerator.h"
 #include "Utilities.h"
 
 #include <iostream>
@@ -7,30 +7,31 @@
 #include <vector>
 #include <string>
 #include <filesystem>
-#include <time.h>
 #include <sstream>
 #include <iomanip>
 
 
+
 size_t processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>& duplicateGroups)
 {
-	// HACK: Currently writing the log here but should be moved to a separate function
+    const std::wstring logFileName = L"duplicate_log.txt";
 
-    std::wstringstream groupsBuffer;
-
+    // Build the complete log content in memory first
+    std::wstringstream logContent;
     size_t groupCount = 0;
     size_t totalDuplicateFiles = 0;
     uintmax_t totalDuplicateSize = 0;
 
-    // Process groups and write group info into buffer
+    // Process groups and collect statistics
+    std::wstringstream groupsBuffer;
     for (const auto& [hash, files] : duplicateGroups)
     {
         if (files.size() <= 1) continue; // Skip unique files
 
         ++groupCount;
         totalDuplicateFiles += files.size() - 1;
-
         uintmax_t fileSize = 0;
+
         try
         {
             fileSize = fs::file_size(files[0]);
@@ -38,13 +39,13 @@ size_t processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>
         }
         catch (const fs::filesystem_error& e)
         {
-            std::wcerr << L"Error getting file size for " << files[0].wstring() << L": " << e.what() << std::endl;
+            std::wstring errorMsg = L"Error getting file size for " + files[0].wstring() + L": " + utf8ToWstring(e.what());
+            printUnicode(errorMsg, true);
             continue;
         }
 
         std::string fileSizeStr = formatFileSize(fileSize);
         std::wstring fileSizeWStr(fileSizeStr.begin(), fileSizeStr.end());
-
         std::wstring hashWStr = std::wstring(hash.begin(), hash.end());
 
         groupsBuffer << L"Duplicate group #" << groupCount << L" (" << files.size() << L" files, " << fileSizeWStr << L" each)" << std::endl;
@@ -57,63 +58,53 @@ size_t processDuplicateGroups(const std::map<std::string, std::vector<fs::path>>
         groupsBuffer << std::endl;
     }
 
-    // Open log file for appending
-    std::wofstream log("duplicate_log.txt");
-    if (!log.is_open())
-    {
-        std::wcerr << L"Error: Could not open duplicates log file for writing." << std::endl;
-        return 0;
-    }
-
-    // Write summary first
-    log << L"=== DUPLICATE FILES ANALYSIS ===" << std::endl;
+    // Build the complete log content
+    logContent << L"=== DUPLICATE FILES ANALYSIS ===" << std::endl;
 
     if (groupCount == 0)
     {
-        log << L"No duplicate files found." << std::endl;
-        std::wcout << L"No duplicate files found." << std::endl;
+        logContent << L"No duplicate files found." << std::endl;
+        printUnicode(L"No duplicate files found.", true);
     }
     else
     {
         std::string totalSizeStr = formatFileSize(totalDuplicateSize);
         std::wstring totalSizeWStr(totalSizeStr.begin(), totalSizeStr.end());
 
-        log << L"\n=== SUMMARY ===" << std::endl;
-        log << L"Total duplicate groups found: " << groupCount << std::endl;
-        log << L"Total duplicate files: " << totalDuplicateFiles << std::endl;
-        log << L"Total wasted space: " << totalSizeWStr << std::endl << std::endl;
+        // Write summary to log content
+        logContent << L"=== SUMMARY ===" << std::endl;
+        logContent << L"Total duplicate groups found: " << groupCount << std::endl;
+        logContent << L"Total duplicate files: " << totalDuplicateFiles << std::endl;
+        logContent << L"Total wasted space: " << totalSizeWStr << std::endl << std::endl;
 
-        std::wcout << L"\n=== SUMMARY ===" << std::endl;
-        std::wcout << L"Total duplicate groups found: " << groupCount << std::endl;
-        std::wcout << L"Total duplicate files: " << totalDuplicateFiles << std::endl;
-        std::wcout << L"Total wasted space: " << totalSizeWStr << std::endl;
+        // Print summary to console
+        printUnicode(L"\n=== SUMMARY ===", true);
+        printUnicode(L"Total duplicate groups found: " + std::to_wstring(groupCount), true);
+        printUnicode(L"Total duplicate files: " + std::to_wstring(totalDuplicateFiles), true);
+        printUnicode(L"Total wasted space: " + totalSizeWStr, true);
     }
 
-    // Write the buffered group details
-    log << groupsBuffer.str();
+    // Append the buffered group details
+    logContent << groupsBuffer.str();
 
-    log.close();
+    // Write everything to file using your Unicode function
+    writeUnicodeToFile(logContent.str(), logFileName, false, false); // newline=false since content already has newlines, append=false to overwrite
+
+    printUnicode(L"Duplicate analysis written to: " + logFileName, true);
+
     return groupCount;
 }
 
 void writeScanLog(const std::vector<fs::path>& paths, const fs::path& basePath, size_t maxEntries)
 {
-    const std::string logFileName = "scan_results.txt";
+    const std::wstring logFileName = L"scan_results.txt";
+    std::wstringstream logContent;
 
-    std::wofstream log(logFileName);
-    if (!log.is_open())
-    {
-        std::wcerr << L"Error: Could not open log file '"
-            << std::wstring(logFileName.begin(), logFileName.end())
-            << L"' for writing." << std::endl;
-        return;
-    }
-
-    log << L"=== DUPEFIND SCAN RESULTS ===" << std::endl;
-    log << L"Scan Date: " << getCurrentTimestamp() << std::endl;
-    log << L"Base Directory: " << basePath.wstring() << std::endl;
-    log << L"Total Files/Directories Found: " << paths.size() << std::endl;
-    log << std::endl;
+    logContent << L"=== DUPEFIND SCAN RESULTS ===" << std::endl;
+    logContent << L"Scan Date: " << getCurrentTimestamp() << std::endl;
+    logContent << L"Base Directory: " << basePath.wstring() << std::endl;
+    logContent << L"Total Files/Directories Found: " << paths.size() << std::endl;
+    logContent << std::endl;
 
     size_t fileCount = 0;
     size_t dirCount = 0;
@@ -141,19 +132,22 @@ void writeScanLog(const std::vector<fs::path>& paths, const fs::path& basePath, 
     }
 
     // Write summary statistics first
-    log << L"\n=== SUMMARY STATISTICS ===" << std::endl;
-    log << L"Directories: " << dirCount << std::endl;
-    log << L"Files: " << fileCount << std::endl;
+    logContent << L"\n=== SUMMARY STATISTICS ===" << std::endl;
+    logContent << L"Directories: " << dirCount << std::endl;
+    logContent << L"Files: " << fileCount << std::endl;
     if (totalSize > 0)
     {
         std::string totalSizeStr = formatFileSize(totalSize);
         std::wstring totalSizeWStr(totalSizeStr.begin(), totalSizeStr.end());
-        log << L"Total Size: " << totalSizeWStr << std::endl;
+        logContent << L"Total Size: " << totalSizeWStr << std::endl;
     }
-    log << std::endl;
+    logContent << std::endl;
 
     // Write the file tree header
-    log << L"\n=== FILE TREE (limited to " << maxEntries << L" entries) ===" << std::endl;
+    logContent << L"\n=== FILE TREE (limited to " << maxEntries << L" entries) ===" << std::endl;
+
+	writeUnicodeToFile(logContent.str(), logFileName);
+
 
     size_t entriesWritten = 0;
     for (const auto& path : paths)
@@ -161,19 +155,23 @@ void writeScanLog(const std::vector<fs::path>& paths, const fs::path& basePath, 
         if (entriesWritten >= maxEntries)
         {
             size_t remaining = paths.size() - entriesWritten;
-            log << L"... (file tree truncated, " << remaining << L" more entries not shown)" << std::endl;
+			std::wstringstream truncatedMessage;
+            truncatedMessage << L"... (file tree truncated, " << remaining << L" more entries not shown)";
+			writeUnicodeToFile(truncatedMessage.str(), logFileName);
             break;
         }
 
         try
         {
+            std::wstringstream entryContent;
+
             // Calculate relative path and indentation
             fs::path relativePath = fs::relative(path, basePath);
             auto depth = std::distance(relativePath.begin(), relativePath.end());
             std::wstring indent = (depth > 1) ? std::wstring((depth - 1) * 2, L' ') : L"";
 
             // Write the entry
-            log << indent << path.filename().wstring();
+            entryContent << indent << path.filename().wstring();
 
             // Add file info if regular file
             if (fs::is_regular_file(path))
@@ -183,81 +181,79 @@ void writeScanLog(const std::vector<fs::path>& paths, const fs::path& basePath, 
                     uintmax_t fileSize = fs::file_size(path);
                     std::string fileSizeStr = formatFileSize(fileSize);
                     std::wstring fileSizeWStr(fileSizeStr.begin(), fileSizeStr.end());
-                    log << L" (" << fileSizeWStr << L")";
+                    entryContent << L" (" << fileSizeWStr << L")";
                 }
                 catch (const fs::filesystem_error&)
                 {
-                    log << L" (size unknown)";
+                    entryContent << L" (size unknown)";
                 }
             }
             else if (fs::is_directory(path))
             {
-                log << L"/";  // trailing slash for directories
+                entryContent << L"/";  // trailing slash for directories
             }
 
-            log << std::endl;
+			writeUnicodeToFile(entryContent.str(), logFileName);
         }
         catch (const fs::filesystem_error& e)
         {
-            log << L"Error processing: " << path.wstring() << L" - " << e.what() << std::endl;
+            std::wstring message = L"Error processing: " + path.wstring() + L" - " + utf8ToWstring(e.what());
+            printUnicodeMulti(true, message);
+
+            writeUnicodeToFile(message, logFileName);
         }
 
         entriesWritten++;
     }
 
-    log.close();
-
-    std::wcout << L"Scan results written to: " << std::wstring(logFileName.begin(), logFileName.end()) << std::endl;
+    printUnicode(L"Scan results written to: " + logFileName, true);
 }
 
 void writeDeletionLog(const std::vector<fs::path>& deletedFiles, const std::vector<fs::path>& keptFiles, const std::string& removalType, size_t successCount, uintmax_t totalSizeDeleted)
 {
-    std::wofstream log("duplicate_log.txt", std::ios::app);
-    if (!log.is_open())
-    {
-        std::wcerr << L"Error: Could not open deletion log file for writing." << std::endl;
-        return;
-    }
+	const std::wstring logFileName = L"deletion_log.txt";
+    std::wstringstream logContent;
 
-    log << L"\n=== " << std::wstring(removalType.begin(), removalType.end()) << L" REMOVAL ===" << std::endl;
-    log << L"Timestamp: " << getCurrentTimestamp() << std::endl;
-    log << L"Total files processed: " << deletedFiles.size() << std::endl;
-    log << L"Successfully deleted: " << successCount << std::endl;
+
+    logContent << L"=== " << std::wstring(removalType.begin(), removalType.end()) << L" REMOVAL ===" << std::endl;
+    logContent << L"Timestamp: " << getCurrentTimestamp() << std::endl;
+    logContent << L"Total files processed: " << deletedFiles.size() << std::endl;
+    logContent << L"Successfully deleted: " << successCount << std::endl;
 
     if (totalSizeDeleted > 0)
     {
         std::string spaceFreedStr = formatFileSize(totalSizeDeleted);
-        log << L"Total space freed: " << std::wstring(spaceFreedStr.begin(), spaceFreedStr.end()) << std::endl;
+        logContent << L"Total space freed: " << std::wstring(spaceFreedStr.begin(), spaceFreedStr.end()) << std::endl;
     }
 
-    log << std::endl;
+    logContent << std::endl;
+
+	writeUnicodeToFile(logContent.str(), logFileName, false, true);
 
     if (!keptFiles.empty())
     {
-        log << L"Files kept:" << std::endl;
+        writeUnicodeToFile(L"Files kept:", logFileName, true, true);
         for (const auto& file : keptFiles)
         {
-            log << L"  KEEP: " << file.wstring() << std::endl;
+            writeUnicodeToFile(L"  KEEP: " + file.wstring(), logFileName);
         }
-        log << std::endl;
+        writeUnicodeToFile(L"", logFileName);
     }
 
-    log << L"Files moved to Recycle Bin:" << std::endl;
+    writeUnicodeToFile(L"Files moved to Recycle Bin:", logFileName);
     for (const auto& file : deletedFiles)
     {
-        log << L"  DELETE: " << file.wstring() << std::endl;
+        writeUnicodeToFile(L"  DELETE: " + file.wstring(), logFileName);
     }
-    log << std::endl;
-
-    log.close();
+	writeUnicodeToFile(L"", logFileName);
 
     // Also write summary to console
-    std::wcout << L"=== REMOVAL SUMMARY ===" << std::endl;
-    std::wcout << L"Total files moved to Recycle Bin: " << successCount << std::endl;
+    printUnicode(L"\n=== REMOVAL SUMMARY ===", true);
+    printUnicode(L"Total files moved to Recycle Bin: " + std::to_wstring(successCount), true);
     if (totalSizeDeleted > 0)
     {
         std::string spaceFreedStr = formatFileSize(totalSizeDeleted);
-        std::wcout << L"Total space freed: " << std::wstring(spaceFreedStr.begin(), spaceFreedStr.end()) << std::endl;
+        printUnicode(L"Total space freed: " + std::wstring(spaceFreedStr.begin(), spaceFreedStr.end()), true);
     }
 }
 
@@ -275,5 +271,30 @@ std::wstring getCurrentTimestamp()
     return wss.str();
 }
 
+void resetLogFiles()
+{
+    const std::vector<std::wstring> logFiles = {
+        L"scan_results.txt",
+        L"duplicate_log.txt",
+        L"deletion_log.txt"
+    };
+
+    for (const auto& logFile : logFiles)
+    {
+        // Simply delete the file if it exists
+        if (fs::exists(logFile))
+        {
+            try
+            {
+                fs::remove(logFile);
+            }
+            catch (const fs::filesystem_error& e)
+            {
+                // Non-critical error, just notify
+                printUnicode(L"Warning: Could not delete old log file: " + logFile + L" - " + utf8ToWstring(e.what()), true);
+            }
+        }
+    }
+}
 
 

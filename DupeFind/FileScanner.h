@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <filesystem>
 #include <vector>
@@ -7,7 +7,7 @@
 
 namespace fs = std::filesystem;
 
-fs::path convertToPath(std::wstring input);
+fs::path convertToPath(const std::wstring& input);
 
 std::vector<fs::path> getAllFilesAndDirectories(const fs::path& folderPath);
 
