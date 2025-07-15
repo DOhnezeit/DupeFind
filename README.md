@@ -1,4 +1,4 @@
-# DupeFind
+﻿# DupeFind
 
 **DupeFind** is a simple command-line tool written in C++ that scans a folder for duplicate files based on their content (using hashing). It's a personal project mainly built for learning purposes, but it's fully functional and can help clean up duplicate files from your disk.
 
@@ -23,9 +23,16 @@
 
 # Notes
 
-- This is a local tool — no network access or uploading.
+- This is a local tool, no network access or uploading.
 - Files are moved to the system Recycle Bin, so accidental deletes are reversible.
-- Performance depends on file sizes and number of files (it hashes every file).
+- Performance depends on file sizes and number of files (it hashes every eligible file).
+- Skips System files as well as files with some extensions (see shouldSkipFile function in FileScanner.cpp)
+
+# Potential future improvements
+
+I might add multi-threading and turn this from a CLI to an application with a GUI. I also want to look into using partial hashing instead of hashing entire files.
+A possible implementation could be a first pass which just hashes a small part of the file, which is used to quickly filter out differing files. If there are identical groups found, a second pass could then be more precise.
+On a more basic level, currently every file is hashed. This is totally unneccessary since files could be disregarded if their file size is unique. A "file size filter" is missing.
 
 ## Why I made this
 
